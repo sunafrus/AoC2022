@@ -36,6 +36,30 @@ impl Move {
             Outcome::Draw
         }
     }
+
+    const ALL_MOVES: [Move; 3] = [Move::Rock, Move::Paper, Move::Scissors];
+
+    fn winning_move(self) -> Move {
+        Self::ALL_MOVES
+            .iter()
+            .copied()
+            .find(|m| m.beats(self))
+            .expect("At least one move beats this move.")
+    }
+
+    fn losing_move(self) -> Move {
+        Self::ALL_MOVES
+            .iter()
+            .copied()
+            .find(|&m| self.beats(m))
+            .expect("This move beats at least one other move.")
+    }
+
+    fn drawing_move(self) -> Move {
+        self
+    }
+
+
 }
 
 impl TryFrom<char> for Move {
@@ -43,9 +67,9 @@ impl TryFrom<char> for Move {
 
     fn try_from(c: char) -> Result<Self, Self::Error> {
         match c {
-            'A' | 'X' => Ok(Move::Rock),
-            'B' | 'Y' => Ok(Move::Paper),
-            'C' | 'Z' => Ok(Move::Scissors),
+            'A' => Ok(Move::Rock),
+            'B' => Ok(Move::Paper),
+            'C' => Ok(Move::Scissors),
             _ => Err(color_eyre::eyre::eyre!("Not a valid move: {c:?}")),
         }
     }
@@ -62,14 +86,15 @@ impl FromStr for Round {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut chars = s.chars();
-        let(Some(theirs), Some(' '), Some(ours), None) = (chars.next(), chars.next(), chars.next(), chars.next()) else {
-            return Err(color_eyre::eyre::eyre!("Expected <theirs>SP<ours>EOF, got {s:?}"));
+        let(Some(theirs), Some(' '), Some(outcome), None) = (chars.next(), chars.next(), chars.next(), chars.next()) else {
+            return Err(color_eyre::eyre::eyre!("Expected <theirs>SP<outcome>EOF, got {s:?}"));
         };
 
-        Ok(Self {
-            theirs: theirs.try_into()?,
-            ours: ours.try_into()?,
-        })
+        let theirs = Move::try_from(theirs)?;
+        let outcome = Outcome::try_from(outcome)?;
+        let ours = outcome.matching_move(theirs);
+        
+        Ok(Self {theirs, ours})
     }
 }
 
@@ -90,6 +115,19 @@ enum Outcome {
     Loss,
 }
 
+impl TryFrom<char> for Outcome {
+    type Error = color_eyre::Report;
+
+    fn try_from(c: char) -> Result<Self, Self::Error> {
+        match c {
+            'X' => Ok(Outcome::Loss),
+            'Y' => Ok(Outcome::Draw),
+            'Z' => Ok(Outcome::Win),
+            _ => Err(color_eyre::eyre::eyre!("Not a valid outcome: {c:?}")),
+        }
+    }
+}
+
 impl Outcome {
     fn inherent_points(self) -> usize {
         match self {
@@ -98,13 +136,21 @@ impl Outcome {
             Outcome::Loss => 0,
         }
     }
+
+    fn matching_move(self, theirs: Move) -> Move {
+        match self {
+            Outcome::Win => theirs.winning_move(),
+            Outcome::Draw => theirs.drawing_move(),
+            Outcome::Loss => theirs.losing_move(),
+        }
+    }
 }
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
 
     let total_score: usize = process_results(
-        include_str!("input.txt").lines().map(Round::from_str).map_ok(|round| round.our_score()),
+        include_str!("input.txt").lines().map(Round::from_str).map_ok(|round| dbg!(round).our_score()),
         |it| it.sum(),
     )?;
 
