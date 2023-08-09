@@ -1,5 +1,5 @@
 use color_eyre::{self};
-use itertools::{self};
+use itertools::{self, Itertools};
 
 mod item {
     #[repr(transparent)]
@@ -38,6 +38,11 @@ use item::Item;
 use std::collections::HashSet;
 
 fn main() -> color_eyre::Result<()> {
+    _ = part_one();
+    part_two()
+}
+
+fn part_one() -> color_eyre::Result<()> {
     let sum = include_str!("input.txt")
         .lines()
         .map(|line| -> color_eyre::Result<_> {
@@ -56,5 +61,28 @@ fn main() -> color_eyre::Result<()> {
         })
         .sum::<color_eyre::Result<usize>>()?;
     dbg!(sum);
+    Ok(())
+}
+
+fn part_two() -> color_eyre::Result<()> {
+    let rucksacks = include_str!("input.txt").lines().map(|line| {
+        line.bytes()
+            .map(Item::try_from)
+            .collect::<Result<HashSet<_>, _>>()
+    });
+
+    let sum = itertools::process_results(rucksacks, |rs| {
+        rs.tuples()
+            .map(|(a, b, c)| {
+                a.iter()
+                    .copied()
+                    .find(|i| b.contains(i) && c.contains(i))
+                    .map(|i| dbg!(i.priority()))
+                    .unwrap_or_default()
+            })
+            .sum::<usize>()
+    })?;
+    dbg!(sum);
+
     Ok(())
 }
