@@ -3,14 +3,18 @@ use nom::{
     bytes::complete::{tag, take, take_while1},
     combinator::{all_consuming, map, map_res, opt},
     sequence::{delimited, preceded, tuple},
-    Finish,
-    IResult,
+    Finish, IResult,
 };
 
-use std::fmt;
 use itertools::Itertools;
+use std::fmt;
 
 fn main() {
+    part_one();
+    part_two();
+}
+
+fn part_one() {
     let mut lines = include_str!("input.txt").lines();
 
     let crate_lines: Vec<_> = (&mut lines)
@@ -24,7 +28,7 @@ fn main() {
 
     let mut piles = Piles(transpose_reverse(crate_lines));
     println!("{piles:?}");
-    
+
     // we've consumed the "numbers line" but not the separating line
     assert!(lines.next().unwrap().is_empty());
 
@@ -35,7 +39,37 @@ fn main() {
     }
 
     println!(
-        "answer = {}",
+        "part 1 answer = {}",
+        piles.0.iter().map(|pile| pile.last().unwrap()).join(""),
+    );
+}
+
+fn part_two() {
+    let mut lines = include_str!("input.txt").lines();
+
+    let crate_lines: Vec<_> = (&mut lines)
+        .map_while(|line| {
+            all_consuming(parse_crate_line)(line)
+                .finish()
+                .ok()
+                .map(|(_, line)| line)
+        })
+        .collect();
+
+    let mut piles = Piles(transpose_reverse(crate_lines));
+    println!("{piles:?}");
+
+    // we've consumed the "numbers line" but not the separating line
+    assert!(lines.next().unwrap().is_empty());
+
+    for ins in lines.map(|line| all_consuming(parse_instruction)(line).finish().unwrap().1) {
+        println!("{ins:?}");
+        piles.apply_once(ins);
+        println!("{piles:?}");
+    }
+
+    println!(
+        "part 2 answer = {}",
         piles.0.iter().map(|pile| pile.last().unwrap()).join(""),
     );
 }
@@ -71,6 +105,17 @@ impl Piles {
         for _ in 0..ins.quantity {
             let el = self.0[ins.src].pop().unwrap();
             self.0[ins.dst].push(el);
+        }
+    }
+
+    fn apply_once(&mut self, ins: Instruction) {
+        for c in (0..ins.quantity)
+            .map(|_| self.0[ins.src].pop().unwrap())
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+        {
+            self.0[ins.dst].push(c);
         }
     }
 }
@@ -119,7 +164,7 @@ fn parse_number(i: &str) -> IResult<&str, usize> {
 }
 
 fn parse_pile_id(i: &str) -> IResult<&str, usize> {
-    map(parse_number, |i| i-1)(i)
+    map(parse_number, |i| i - 1)(i)
 }
 
 fn parse_instruction(i: &str) -> IResult<&str, Instruction> {
