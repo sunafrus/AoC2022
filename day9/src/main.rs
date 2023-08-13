@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, time::Duration};
+use std::collections::VecDeque;
 
 use egui::{Color32, Sense, Stroke};
 use nom::{combinator::all_consuming, Finish};
@@ -23,8 +23,7 @@ fn main() {
 
 struct MyApp {
     instructions: VecDeque<Instruction>,
-    head: GridPos,
-    tail: GridPos,
+    knots: [GridPos; 10],
     tail_visited: HashSet<GridPos>,
 }
 
@@ -37,8 +36,7 @@ impl MyApp {
 
         Self {
             instructions,
-            head: GridPos { x: 0, y: 0 },
-            tail: GridPos { x: 0, y: 0 },
+            knots: [GridPos { x: 0, y: 0 }; 10],
             tail_visited: Default::default(),
         }
     }
@@ -48,37 +46,47 @@ impl MyApp {
             Some(instruction) => instruction,
             None => return,
         };
-        self.head += instruction.dir.delta();
+        self.knots[0] += instruction.dir.delta();
 
-        let diff = self.head - self.tail;
-        let (dx, dy) = match (diff.x, diff.y) {
-            // overlapping
-            (0, 0) => (0, 0),
-            // touching up/left/down/right
-            (0, 1) | (1, 0) | (0, -1) | (-1, 0) => (0, 0),
-            // touching diagonally
-            (1, 1) | (1, -1) | (-1, 1) | (-1, -1) => (0, 0),
-            // need to move up/left/down/right
-            (0, 2) => (0, 1),
-            (0, -2) => (0, -1),
-            (2, 0) => (1, 0),
-            (-2, 0) => (-1, 0),
-            // need to move to the right diagonally
-            (2, 1) => (1, 1),
-            (2, -1) => (1, -1),
-            // need to move to the left diagonally
-            (-2, 1) => (-1, 1),
-            (-2, -1) => (-1, -1),
-            // need to move up/down diagonally
-            (1, 2) => (1, 1),
-            (-1, 2) => (-1, 1),
-            (1, -2) => (1, -1),
-            (-1, -2) => (-1, -1),
-            _ => panic!("unhandled case: tail - head = {diff:?}"),
-        };
-        self.tail.x += dx;
-        self.tail.y += dy;
-        self.tail_visited.insert(self.tail);
+        for i in 1..self.knots.len() {
+            let diff = self.knots[i - 1] - self.knots[i];
+            let (dx, dy) = match (diff.x, diff.y) {
+                // overlapping
+                (0, 0) => (0, 0),
+                // touching up/left/down/right
+                (0, 1) | (1, 0) | (0, -1) | (-1, 0) => (0, 0),
+                // touching diagonally
+                (1, 1) | (1, -1) | (-1, 1) | (-1, -1) => (0, 0),
+                // need to move up/left/down/right
+                (0, 2) => (0, 1),
+                (0, -2) => (0, -1),
+                (2, 0) => (1, 0),
+                (-2, 0) => (-1, 0),
+                // need to move to the right diagonally
+                (2, 1) => (1, 1),
+                (2, -1) => (1, -1),
+                // need to move to the left diagonally
+                (-2, 1) => (-1, 1),
+                (-2, -1) => (-1, -1),
+                // need to move up/down diagonally
+                (1, 2) => (1, 1),
+                (-1, 2) => (-1, 1),
+                (1, -2) => (1, -1),
+                (-1, -2) => (-1, -1),
+                // 🆕 need to move diagonally
+                (-2, -2) => (-1, -1),
+                (-2, 2) => (-1, 1),
+                (2, -2) => (1, -1),
+                (2, 2) => (1, 1),
+                _ => panic!("unhandled case: tail - head = {diff:?}"),
+            };
+            self.knots[i].x += dx;
+            self.knots[i].y += dy;
+
+            if i == self.knots.len() - 1 {
+                self.tail_visited.insert(self.knots[i]);
+            }
+        }
 
         instruction.dist -= 1;
         if instruction.dist == 0 {
@@ -135,20 +143,34 @@ impl eframe::App for MyApp {
                 }
             }
 
-            // paint the head
-            let head_pos = to_panel_pos(self.head);
-            painter.circle_stroke(head_pos, 2.0, Stroke::new(2.0, Color32::GREEN));
+            let num_knots = self.knots.len();
 
-            // paint the tail
-            let tail_pos = to_panel_pos(self.tail);
-            painter.circle_stroke(tail_pos, 2.0, Stroke::new(2.0, Color32::YELLOW));
+            for (i, knot_pos) in self.knots.iter().copied().enumerate() {
+                let knot_pos = to_panel_pos(knot_pos);
+                if i > 0 {
+                    // paint an arrow from the previous knot to this one
+                    let prev_pos = to_panel_pos(self.knots[i - 1]);
+                    painter.arrow(
+                        prev_pos,
+                        knot_pos - prev_pos,
+                        Stroke::new(1.0, Color32::YELLOW),
+                    )
+                }
+            }
 
-            // paint an arrow from head to tail
-            painter.arrow(
-                tail_pos,
-                head_pos - tail_pos,
-                Stroke::new(1.0, Color32::YELLOW),
-            )
+            for (i, knot_pos) in self.knots.iter().copied().enumerate() {
+                let knot_pos = to_panel_pos(knot_pos);
+                painter.circle_filled(
+                    knot_pos,
+                    2.0,
+                    Color32::from_rgb(
+                        20,
+                        60 + ((255.0 - 60.0) * (num_knots as f32 - i as f32) / num_knots as f32)
+                            as u8,
+                        20,
+                    ),
+                );
+            }
         });
 
         ctx.request_repaint();
