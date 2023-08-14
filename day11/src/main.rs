@@ -49,13 +49,12 @@ fn main() {
         }
     };
 
+    let divisor_product = monkeys.iter().map(|m| m.divisor).product::<u64>();
+    dbg!(divisor_product);
+    
     let mut monkeys = monkeys;
-    for i in 0..20 {
-        println!("Round {}", i+1);
-        do_round(&mut monkeys);
-        for monkey in &monkeys {
-            println!("    {monkey:?}");
-        }
+    for _ in 0..10_000 {
+        do_round(&mut monkeys, divisor_product);
     }
 
     let mut all_inspect_counts = monkeys
@@ -70,7 +69,7 @@ fn main() {
     dbg!(monkey_business);
 }
 
-fn do_round(monkeys: &mut [Monkey]) {
+fn do_round(monkeys: &mut [Monkey], divisor_product: u64) {
     let num_monkeys = monkeys.len();
 
     for i in 0..num_monkeys {
@@ -83,8 +82,8 @@ fn do_round(monkeys: &mut [Monkey]) {
         }
 
         for mut item in mc.items.iter().copied() {
+            item %= divisor_product;
             item = mc.operation.eval(item);
-            item /= 3;
 
             if item % mc.divisor == 0 {
                 monkeys[mc.receiver_if_true].items.push(item);
